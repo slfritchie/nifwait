@@ -14,7 +14,7 @@ run([NS, WS, RS, BWS]) ->
         list_to_integer(BWS)).
 
 run(N,W,R,BW) ->
-    Repeat = lists:seq(1,R),
+    Repeat = lists:seq(0,R-1),
     Bin = random_binary(W, <<>>),
     Parent = self(),
     Pids = spawn_n(N, fun() ->
@@ -23,39 +23,73 @@ run(N,W,R,BW) ->
                                       ok
                               end,
                               Start = now(),
-                              put(rrr, 0),
-                              report(),
+                              put(rrr, N),
+                              report(Parent),
                               lists:foreach(fun(_) ->
-                                                    report(),
+                                                    report(Parent),
                                                     M1 = crypto:md5_init(),
                                                     M2 = crypto:md5_update(M1, Bin),
                                                     crypto:md5_final(M2),
                                                     busywait(BW)
                                             end, Repeat),
-                              report(),
-                              report(),
+                              report(Parent),
                               Diff = timer:now_diff(now(), Start) / 1000000,
-                              io:format("~p done, elapsed ~p seconds\n", [self(), Diff]),
+                              %io:format("~p done, elapsed ~p seconds\n", [self(), Diff]),
                               Parent ! {done, self(), Diff}
                       end),
     io:format("Ready ... "),
     timer:sleep(1000),
     io:format("go\n"),
+    Start = now(),
     [Child ! go || Child <- Pids],
-    [receive
+    status_loop(Pids, Start).
+
+status_loop(Pids, Start) ->
+    status_loop(Pids, Start, 0.0).
+
+status_loop([], _Start, _LastBalance) ->
+    [];
+status_loop(Pids, Start, LastBalance) ->
+    receive
          {done, Child, Diff} ->
-             Diff
-     end || Child <- Pids].
+             [Diff|status_loop(Pids -- [Child], Start, LastBalance)];
+         {status, _Child, RQ, _Reds, _Now} ->
+            {Balance, RQ} = calc_balance(RQ),
+            if Balance /= LastBalance ->
+                    io:format("~p ~p ~p\n", [time(), Balance, RQ]);
+               true ->
+                    ok
+            end,
+            status_loop(Pids, Start, Balance)
+     end.
 
-report() ->
-    report(get(rrr)).
+calc_balance(RQ) ->
+    L0 = tuple_to_list(RQ),
+    Type = case lists:foldl(fun(0, Acc) -> Acc+1;
+                               (_, Acc) -> Acc
+                            end, 0, L0) of
+               0 ->
+                   even;
+               Len when Len =< (size(RQ) / 2) ->
+                   minority_zero;
+               _ ->
+                   unbalanced
+           end,
+    Max = lists:max(L0),
+    Median = erlang:max(1, lists:nth(length(L0) div 2, lists:sort(L0))),
+    Ratio = trunc(100 * Max / Median) / 100,
+    %% {Type, Ratio, RQ}.
+    {{Type, Ratio}, RQ}.
 
-report(0) ->
+report(Parent) ->
+    report(get(rrr), Parent).
+
+report(0, Parent) ->
     put(rrr, 1),
     {reductions, Reds} = process_info(self(), reductions),
     RQ = erlang:statistics(run_queues),
-    erlang:display({RQ, Reds, time(), self()});
-report(N) ->
+    Parent ! {status, self(), RQ, Reds, now()};
+report(N, _Parent) ->
     put(rrr, (N + 1) rem 1000).
    
 spawn_n(0, _) ->
