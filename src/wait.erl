@@ -24,15 +24,14 @@ run(N,W,R,BW) ->
                               end,
                               Start = now(),
                               put(rrr, N),
-                              report(Parent),
                               lists:foreach(fun(_) ->
-                                                    report(Parent),
+                                                    %report(Parent),
                                                     M1 = crypto:md5_init(),
                                                     M2 = crypto:md5_update(M1, Bin),
                                                     crypto:md5_final(M2),
                                                     busywait(BW)
                                             end, Repeat),
-                              report(Parent),
+                              %report(Parent),
                               Diff = timer:now_diff(now(), Start) / 1000000,
                               %io:format("~p done, elapsed ~p seconds\n", [self(), Diff]),
                               Parent ! {done, self(), Diff}
@@ -42,7 +41,12 @@ run(N,W,R,BW) ->
     io:format("go\n"),
     Start = now(),
     [Child ! go || Child <- Pids],
-    status_loop(Pids, Start).
+    MonPid = spawn_link(fun() -> process_flag(priority, high),
+                                 monitor_loop(Parent)
+                        end),
+    Res = status_loop(Pids, Start),
+    MonPid ! stop,
+    Res.
 
 status_loop(Pids, Start) ->
     status_loop(Pids, Start, 0.0).
@@ -62,6 +66,18 @@ status_loop(Pids, Start, LastBalance) ->
             end,
             status_loop(Pids, Start, Balance)
      end.
+
+monitor_loop(Parent) ->
+    receive
+        stop ->
+            ok
+    after 0 ->
+            report(0, Parent),
+            Start = erlang:now(),
+            timer:sleep(500),
+            io:format("slept ~p, ", [timer:now_diff(now(), Start)]),
+            monitor_loop(Parent)
+    end.
 
 calc_balance(RQ) ->
     L0 = tuple_to_list(RQ),
