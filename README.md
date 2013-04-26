@@ -1,25 +1,17 @@
-Utility to test effect of blocking NIF on Erlang scheduler.
 
-Test spawns several processes, all which will start in the run queue
-of the current scheduler. Each spawned process then calls `usleep`
-from within a NIF, sleeping for configurable duration. After the
-sleep, the processes then performs a pure Erlang busy wait, looping
-for configurable number of iterations. Process then exits.  Each
-process periodically prints out the Erlang run queues as well as the
-number of reductions performed by the process.
+This is a fork of https://github.com/basho/nifwait.
 
-Compile with rebar: `rebar compile`
+You're probably looking for one of two branches in this
+repository.  The `master` branch does not contain anything
+except this README file.
 
-Run Erlang: `erl -pa ebin`
+1. The `sleep` branch, which corresponds to the basho repo's `master` branch.
+2. The `md5` branch, which corresponds to the basho repo's `md5` branch.
 
-Use:
-```erlang
-  %%  wait:run(N, W, R, BW)
-  %%  N = number of spawned procs
-  %%  W = microseconds spent waiting in NIF
-  %%  R = number of repeat calls to NIF
-  %% BW = iterations of pure Erlang busy wait
+The `sleep` branch is Joe's original, using a pair of simple custom NIF
+functions to demonstrate scheduler imbalance when NIFs execute for 
+too long without returning control to Erlang code.
 
-  %% Example:
-  wait:run(100,300000, 5, 10000).
-```
+The `md5` branch does the same, but without using a custom NIF.
+Instead, it uses the MD5 functions in the Erlang/OTP `crypto` module
+to demonstrate the same scheduling problem.
