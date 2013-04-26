@@ -142,6 +142,10 @@ happened since October 2012:
   which has all NIF code that has been coded to avoid all of the OTP
   team's restrictions on NIF API use.  Riak 1.3.1 is based on
   Erlang/OTP R15B01.
+* Basho has confirmed cases of scheduler collapse in its Riak CS
+  product.  Riak CS does not use any custom NIF code.  It does,
+  however, make heavy use of the `crypto` module's MD5-related
+  functions.
 * It appears to be quite easy to reproduce scheduler collapse using
   Erlang/OTP R16B using the code in this repository ... Basho's
   testing efforts have a test case that only occasionally fails.
